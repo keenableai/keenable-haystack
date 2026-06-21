@@ -1,0 +1,46 @@
+name: Publish to PyPI
+
+# Publishes keenable-haystack to PyPI via Trusted Publishing (OIDC) — no API
+# tokens are stored. Runs when a GitHub Release is published; also runnable
+# manually once a tag/release exists.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Build sdist + wheel
+        run: |
+          rm -rf dist
+          uv build
+      - name: Check metadata
+        run: uvx twine check dist/*
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # The required-reviewer gate lives on this environment in repo settings.
+    environment: pypi
+    permissions:
+      id-token: write   # mint the OIDC token PyPI trusts; do not remove
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1

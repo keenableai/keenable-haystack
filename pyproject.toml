@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "keenable-haystack"
+version = "0.1.0"
+description = "Keenable web-search and page-fetch components for Haystack. Keyless by default."
+authors = [{ name = "Keenable", email = "hello@keenable.ai" }]
+maintainers = [{ name = "keenableai" }]
+requires-python = ">=3.9"
+readme = "README.md"
+license = "MIT"
+keywords = ["haystack", "haystack-ai", "keenable", "web-search", "fetch", "agents", "rag"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "haystack-ai>=2.0.0",
+    "requests>=2.31",
+]
+
+[project.urls]
+Homepage = "https://keenable.ai"
+Documentation = "https://docs.keenable.ai"
+Repository = "https://github.com/keenableai/keenable-haystack"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.11",
+    "mypy>=1.10",
+]
+
+# PEP 420 namespace package: ship the whole `haystack_integrations` tree (no
+# __init__.py at the namespace levels) so Keenable coexists with other
+# haystack_integrations.* packages.
+[tool.hatch.build.targets.sdist]
+include = ["haystack_integrations/", "LICENSE", "README.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["haystack_integrations"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+# Two namespace-package leaves share the basename `keenable`, so mypy needs
+# explicit package bases + namespace mode to map files to modules. python_version
+# is the analysis target (mypy dropped 3.9 as a target); the package floor stays
+# 3.9 via requires-python.
+[tool.mypy]
+ignore_missing_imports = true
+python_version = "3.10"
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "."
