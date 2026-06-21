@@ -363,6 +363,16 @@ def test_search_bad_payload_raises(monkeypatch):
         KeenableWebSearch().run(query="q")
 
 
+def test_search_bad_payload_redacts_key(monkeypatch):
+    # A 200 body that lacks a valid `results` but echoes the key must not leak it.
+    key = "sk-echo-in-200-body"
+    _patch(monkeypatch, _FakeResponse(json_body={"results": None, "debug": f"key={key}"}))
+    with pytest.raises(KeenableError) as exc:
+        KeenableWebSearch(api_key=Secret.from_token(key)).run(query="q")
+    assert key not in str(exc.value)
+    assert "***" in str(exc.value)
+
+
 def test_search_keyed_endpoint(monkeypatch):
     _patch(monkeypatch, _FakeResponse(json_body={"results": []}))
     KeenableWebSearch(api_key=Secret.from_token("secret")).run(query="q")

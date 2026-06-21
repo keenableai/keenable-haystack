@@ -9,6 +9,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.websearch.keenable._client import (
     KeenableError,
+    _redact,
     keenable_post,
     normalize_key,
 )
@@ -136,7 +137,9 @@ class KeenableWebSearch:
         data = keenable_post("/v1/search/public", "/v1/search", payload, api_key, self.timeout)
         results = data.get("results")
         if not isinstance(results, list):
-            msg = f"Unexpected response from the Keenable search API: {data!r}"
+            # Redact like _client does: a 200 body could echo the key (e.g. a
+            # debug field), and it would otherwise land in the exception text.
+            msg = f"Unexpected response from the Keenable search API: {_redact(repr(data)[:200], api_key)}"
             raise KeenableError(msg)
 
         if self.top_k is not None:
