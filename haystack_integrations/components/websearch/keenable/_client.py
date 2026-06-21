@@ -59,16 +59,30 @@ def resolve_base_url() -> str:
     """Resolve the API base URL from ``KEENABLE_API_URL`` and enforce HTTPS."""
     base = (os.environ.get(_BASE_URL_ENV) or _DEFAULT_BASE_URL).rstrip("/")
     parsed = urlsplit(base)
-    # A usable absolute URL needs a host; bail out clearly on e.g. "https://"
-    # rather than letting a malformed base produce a broken request URL later.
-    if parsed.hostname:
-        if parsed.scheme == "https":
-            return base
-        # Permit plain http only for local development against a loopback host.
-        if parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}:
-            return base
-    msg = f"{_BASE_URL_ENV} must be an https:// URL with a host, got {base!r}"
-    raise KeenableError(msg)
+    host = (parsed.hostname or "").rstrip(".")
+    if not host:
+        msg = f"{_BASE_URL_ENV} must be an https:// URL with a host, got {base!r}"
+        raise KeenableError(msg)
+    # Local-dev escape hatch: plain http only to an explicit loopback host.
+    if parsed.scheme == "http" and host in {"localhost", "127.0.0.1", "::1"}:
+        return base
+    if parsed.scheme != "https":
+        msg = f"{_BASE_URL_ENV} must be an https:// URL with a host, got {base!r}"
+        raise KeenableError(msg)
+    # Over https, refuse a base URL pointing at a private/internal destination —
+    # a misconfigured KEENABLE_API_URL must never ship API keys to an internal
+    # host (the same SSRF set as reject_private_fetch_target).
+    if host == "metadata.google.internal" or any(
+        ip.is_loopback
+        or ip.is_private
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_unspecified
+        for ip in _candidate_ips(host)
+    ):
+        msg = f"{_BASE_URL_ENV} must not point at a private/internal address, got {base!r}"
+        raise KeenableError(msg)
+    return base
 
 
 def _candidate_ips(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
@@ -150,6 +164,10 @@ def _raise_for_status(response: requests.Response) -> None:
         402: "Keenable: insufficient credits (402)",
         429: "Keenable rate limit exceeded (429)",
     }.get(response.status_code, f"Keenable API error ({response.status_code})")
+    # Never echo a 401 body: if a server ever put the API key in its auth-failure
+    # message, forwarding `detail` would leak it into our exception text / logs.
+    if response.status_code == 401:
+        raise KeenableError(label)
     raise KeenableError(f"{label}: {detail}" if detail else label)
 
 
@@ -167,6 +185,19 @@ def _decode(response: requests.Response) -> dict[str, Any]:
     return data
 
 
+def _transport_error(e: Exception, api_key: str | None) -> KeenableError:
+    """Wrap a transport exception, redacting the key from its message text.
+
+    Standard ``requests`` exceptions never carry headers, but a custom adapter /
+    proxy middleware could put one in the exception string; redact defensively so
+    the key can't reach an exception message, logs, or pipeline tracing.
+    """
+    detail = str(e)
+    if api_key:
+        detail = detail.replace(api_key, "***")
+    return KeenableError(f"Could not reach the Keenable API: {type(e).__name__}: {detail}")
+
+
 def keenable_post(
     public_path: str, keyed_path: str, payload: dict[str, Any], api_key: str | None, timeout: float
 ) -> dict[str, Any]:
@@ -177,8 +208,7 @@ def keenable_post(
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=timeout)
     except requests.RequestException as e:
-        msg = f"Could not reach the Keenable API: {e!r}"
-        raise KeenableError(msg) from e
+        raise _transport_error(e, api_key) from e
     return _decode(response)
 
 
@@ -191,6 +221,5 @@ def keenable_get(
     try:
         response = requests.get(url, params=params, headers=_headers(api_key), timeout=timeout)
     except requests.RequestException as e:
-        msg = f"Could not reach the Keenable API: {e!r}"
-        raise KeenableError(msg) from e
+        raise _transport_error(e, api_key) from e
     return _decode(response)

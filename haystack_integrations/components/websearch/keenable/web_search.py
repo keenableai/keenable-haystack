@@ -69,6 +69,9 @@ class KeenableWebSearch:
         if timeout <= 0:
             msg = f"timeout must be a positive number of seconds, got {timeout!r}"
             raise ValueError(msg)
+        if top_k is not None and top_k < 1:
+            msg = f"top_k must be None or a positive integer, got {top_k!r}"
+            raise ValueError(msg)
         self.api_key = api_key
         self.top_k = top_k
         self.mode = mode
