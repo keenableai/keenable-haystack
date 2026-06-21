@@ -244,14 +244,16 @@ def test_error_status_mapping(monkeypatch, status, needle):
     assert needle in str(exc.value).lower()
 
 
-def test_401_body_not_echoed(monkeypatch):
-    # A 401 must use the canned label only — never forward a server body that
-    # might contain an echoed key.
-    _patch(monkeypatch, _FakeResponse(status_code=401, json_body={"message": "key=sk-leak-123"}))
+@pytest.mark.parametrize("status", [401, 402, 429, 500])
+def test_error_body_redacts_echoed_key(monkeypatch, status):
+    # A server that echoes the X-API-Key in its error body must not leak it into
+    # the KeenableError text — redacted for every status, not just 401.
+    key = "sk-leak-123"
+    _patch(monkeypatch, _FakeResponse(status_code=status, json_body={"message": f"got key={key}"}))
     with pytest.raises(KeenableError) as exc:
-        keenable_post("/v1/search/public", "/v1/search", {"query": "x"}, "sk-leak-123", 30.0)
-    assert "sk-leak-123" not in str(exc.value)
-    assert str(exc.value) == "Keenable authentication failed (401)"
+        keenable_post("/v1/search/public", "/v1/search", {"query": "x"}, key, 30.0)
+    assert key not in str(exc.value)
+    assert "***" in str(exc.value)
 
 
 def test_transport_error_does_not_use_exception_repr(monkeypatch):
@@ -333,10 +335,20 @@ def test_search_top_k_limits_client_side(monkeypatch):
 
 def test_search_default_mode_and_site(monkeypatch):
     _patch(monkeypatch, _FakeResponse(json_body={"results": []}))
-    KeenableWebSearch(mode="realtime", site="example.com").run(query="q")
+    KeenableWebSearch(
+        api_key=Secret.from_token("k"), mode="realtime", site="example.com"
+    ).run(query="q")
     sent = _Recorder.last["json"]
     assert sent["mode"] == "realtime"
     assert sent["site"] == "example.com"
+
+
+def test_realtime_without_key_raises(monkeypatch):
+    _patch(monkeypatch, _FakeResponse(json_body={"results": []}))
+    with pytest.raises(KeenableError):
+        KeenableWebSearch(mode="realtime").run(query="q")  # keyless -> realtime not allowed
+    with pytest.raises(KeenableError):
+        KeenableWebSearch().run(query="q", mode="realtime")
 
 
 def test_search_no_max_results_in_payload(monkeypatch):

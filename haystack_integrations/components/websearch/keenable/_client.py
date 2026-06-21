@@ -148,7 +148,18 @@ def _headers(api_key: str | None) -> dict[str, str]:
     return headers
 
 
-def _raise_for_status(response: requests.Response) -> None:
+def _redact(text: str, api_key: str | None) -> str:
+    """Strip the API key from any text bound for an exception message or log.
+
+    Server error bodies and transport-exception strings are attacker- or
+    misconfiguration-influenced; a server that echoed the ``X-API-Key`` request
+    header back in its response would otherwise leak the key into our
+    ``KeenableError`` text, logs, and Haystack pipeline traces.
+    """
+    return text.replace(api_key, "***") if api_key else text
+
+
+def _raise_for_status(response: requests.Response, api_key: str | None) -> None:
     """Map a non-2xx Keenable response to a readable :class:`KeenableError`."""
     if response.ok:
         return
@@ -159,28 +170,25 @@ def _raise_for_status(response: requests.Response) -> None:
             detail = str(body.get("message") or body.get("error") or body.get("detail") or "")
     except ValueError:
         detail = (response.text or "").strip()
+    detail = _redact(detail[:200], api_key)
     label = {
         401: "Keenable authentication failed (401)",
         402: "Keenable: insufficient credits (402)",
         429: "Keenable rate limit exceeded (429)",
     }.get(response.status_code, f"Keenable API error ({response.status_code})")
-    # Never echo a 401 body: if a server ever put the API key in its auth-failure
-    # message, forwarding `detail` would leak it into our exception text / logs.
-    if response.status_code == 401:
-        raise KeenableError(label)
     raise KeenableError(f"{label}: {detail}" if detail else label)
 
 
-def _decode(response: requests.Response) -> dict[str, Any]:
-    _raise_for_status(response)
+def _decode(response: requests.Response, api_key: str | None) -> dict[str, Any]:
+    _raise_for_status(response, api_key)
     try:
         data = response.json()
     except ValueError as e:
-        snippet = (response.text or "")[:200]
+        snippet = _redact((response.text or "")[:200], api_key)
         msg = f"Keenable API returned a non-JSON response: {snippet!r}"
         raise KeenableError(msg) from e
     if not isinstance(data, dict):
-        msg = f"Unexpected response from the Keenable API: {data!r}"
+        msg = f"Unexpected response from the Keenable API: {_redact(repr(data)[:200], api_key)}"
         raise KeenableError(msg)
     return data
 
@@ -192,10 +200,9 @@ def _transport_error(e: Exception, api_key: str | None) -> KeenableError:
     proxy middleware could put one in the exception string; redact defensively so
     the key can't reach an exception message, logs, or pipeline tracing.
     """
-    detail = str(e)
-    if api_key:
-        detail = detail.replace(api_key, "***")
-    return KeenableError(f"Could not reach the Keenable API: {type(e).__name__}: {detail}")
+    return KeenableError(
+        f"Could not reach the Keenable API: {type(e).__name__}: {_redact(str(e), api_key)}"
+    )
 
 
 def keenable_post(
@@ -209,7 +216,7 @@ def keenable_post(
         response = requests.post(url, json=payload, headers=headers, timeout=timeout)
     except requests.RequestException as e:
         raise _transport_error(e, api_key) from e
-    return _decode(response)
+    return _decode(response, api_key)
 
 
 def keenable_get(
@@ -222,4 +229,4 @@ def keenable_get(
         response = requests.get(url, params=params, headers=_headers(api_key), timeout=timeout)
     except requests.RequestException as e:
         raise _transport_error(e, api_key) from e
-    return _decode(response)
+    return _decode(response, api_key)

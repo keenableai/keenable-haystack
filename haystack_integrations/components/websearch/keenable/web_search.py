@@ -116,7 +116,13 @@ class KeenableWebSearch:
         :returns: A dict with ``documents`` (``list[Document]``) and ``links``
             (``list[str]``).
         """
-        payload: dict[str, Any] = {"query": query, "mode": mode or self.mode}
+        effective_mode = mode or self.mode
+        api_key = normalize_key(self.api_key.resolve_value())
+        if effective_mode == "realtime" and api_key is None:
+            msg = "mode='realtime' requires an API key; it is not available on the keyless endpoint."
+            raise KeenableError(msg)
+
+        payload: dict[str, Any] = {"query": query, "mode": effective_mode}
         for field, value in (
             ("site", site or self.site),
             ("published_after", published_after),
@@ -127,13 +133,7 @@ class KeenableWebSearch:
             if value:
                 payload[field] = value
 
-        data = keenable_post(
-            "/v1/search/public",
-            "/v1/search",
-            payload,
-            normalize_key(self.api_key.resolve_value()),
-            self.timeout,
-        )
+        data = keenable_post("/v1/search/public", "/v1/search", payload, api_key, self.timeout)
         results = data.get("results")
         if not isinstance(results, list):
             msg = f"Unexpected response from the Keenable search API: {data!r}"
