@@ -11,8 +11,7 @@
   so you don't need a separate `LinkContentFetcher` + `HTMLToDocument` step).
 
 **Keyless by default**: with no API key the keyless public endpoints are used.
-Provide a key to use the authenticated endpoints (required for `mode="realtime"`
-and for higher rate limits).
+Provide a key to use the authenticated endpoints (for higher rate limits).
 
 ## Install
 
