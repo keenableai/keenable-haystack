@@ -96,11 +96,11 @@ def test_websearch_keyless_by_default():
 
 def test_websearch_to_from_dict(monkeypatch):
     monkeypatch.setenv("KEENABLE_API_KEY", "secret")
-    ws = KeenableWebSearch(top_k=5, mode="realtime", site="github.com", timeout=12.0)
+    ws = KeenableWebSearch(top_k=5, mode="pro", site="github.com", timeout=12.0)
     data = ws.to_dict()
     init = data["init_parameters"]
     assert init["top_k"] == 5
-    assert init["mode"] == "realtime"
+    assert init["mode"] == "pro"
     assert init["site"] == "github.com"
     assert init["timeout"] == 12.0
     # The raw key value must never be serialized; only the env var name is.
@@ -109,7 +109,7 @@ def test_websearch_to_from_dict(monkeypatch):
 
     restored = KeenableWebSearch.from_dict(data)
     assert restored.top_k == 5
-    assert restored.mode == "realtime"
+    assert restored.mode == "pro"
     assert restored.api_key.resolve_value() == "secret"
 
 
@@ -336,19 +336,11 @@ def test_search_top_k_limits_client_side(monkeypatch):
 def test_search_default_mode_and_site(monkeypatch):
     _patch(monkeypatch, _FakeResponse(json_body={"results": []}))
     KeenableWebSearch(
-        api_key=Secret.from_token("k"), mode="realtime", site="example.com"
+        api_key=Secret.from_token("k"), mode="pro", site="example.com"
     ).run(query="q")
     sent = _Recorder.last["json"]
-    assert sent["mode"] == "realtime"
+    assert sent["mode"] == "pro"
     assert sent["site"] == "example.com"
-
-
-def test_realtime_without_key_raises(monkeypatch):
-    _patch(monkeypatch, _FakeResponse(json_body={"results": []}))
-    with pytest.raises(KeenableError):
-        KeenableWebSearch(mode="realtime").run(query="q")  # keyless -> realtime not allowed
-    with pytest.raises(KeenableError):
-        KeenableWebSearch().run(query="q", mode="realtime")
 
 
 def test_search_no_max_results_in_payload(monkeypatch):
