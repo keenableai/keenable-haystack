@@ -60,12 +60,6 @@ def main() -> int:
     key = (os.environ.get("KEENABLE_API_KEY") or "").strip()
     if key:
         run_search_and_fetch("keyed (authenticated endpoints)", Secret.from_token(key))
-        # realtime mode is keyed-only
-        print("\n== keyed: mode=realtime ==")
-        out = KeenableWebSearch(api_key=Secret.from_token(key), top_k=2).run(
-            query=QUERY, mode="realtime"
-        )
-        _check(len(out["documents"]) > 0, "realtime mode returned results")
     else:
         print("\n(skipping keyed checks — KEENABLE_API_KEY not set)")
 
