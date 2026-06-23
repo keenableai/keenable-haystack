@@ -28,8 +28,7 @@ class KeenableWebSearch:
     Keyless by default: with no API key the keyless public endpoint
     (``/v1/search/public``) is used. Provide an API key (the ``api_key`` argument
     or the ``KEENABLE_API_KEY`` environment variable) to use the authenticated
-    endpoint (``/v1/search``), required for ``mode="realtime"`` and for higher
-    rate limits.
+    endpoint (``/v1/search``) for higher rate limits.
 
     The API endpoint is read from ``KEENABLE_API_URL`` (HTTPS enforced), never a
     ``run`` argument, so the search cannot be redirected to an arbitrary host.
@@ -61,8 +60,7 @@ class KeenableWebSearch:
             absent (or blank) the keyless public endpoint is used.
         :param top_k: Keep at most this many results (applied client-side; the API
             returns a fixed-size set with no count parameter). ``None`` keeps all.
-        :param mode: Default search mode, ``"pro"`` (deeper) or ``"realtime"``
-            (low latency). ``"realtime"`` requires an API key. Overridable per run.
+        :param mode: Default search mode, ``"pro"`` (default). Overridable per run.
         :param site: Default single-domain restriction, e.g. ``"github.com"``.
             Overridable per run.
         :param timeout: Per-request timeout in seconds.
@@ -119,9 +117,6 @@ class KeenableWebSearch:
         """
         effective_mode = mode or self.mode
         api_key = normalize_key(self.api_key.resolve_value())
-        if effective_mode == "realtime" and api_key is None:
-            msg = "mode='realtime' requires an API key; it is not available on the keyless endpoint."
-            raise KeenableError(msg)
 
         payload: dict[str, Any] = {"query": query, "mode": effective_mode}
         for field, value in (
