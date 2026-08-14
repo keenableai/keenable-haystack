@@ -319,7 +319,35 @@ def test_search_returns_documents_and_links(monkeypatch):
     assert sent["mode"] == "pro"
 
 
-def test_search_content_falls_back_to_title(monkeypatch):
+def test_search_content_prefers_snippet_over_empty_description(monkeypatch):
+    """The API returns both fields, and `description` is usually the empty one.
+
+    Reading `description` first left every Document holding just its title, which
+    is what shipped in 0.1.2 and earlier.
+    """
+    body = {
+        "results": [
+            {
+                "title": "T1",
+                "url": "https://e1.com",
+                "description": "",
+                "snippet": "the page text",
+            }
+        ]
+    }
+    _patch(monkeypatch, _FakeResponse(json_body=body))
+    out = KeenableWebSearch().run(query="q")
+    assert out["documents"][0].content == "the page text"
+    # The raw result still reaches meta untouched, both fields included.
+    assert out["documents"][0].meta["snippet"] == "the page text"
+    assert out["documents"][0].meta["description"] == ""
+
+
+def test_search_content_falls_back_to_description_then_title(monkeypatch):
+    body = {"results": [{"title": "T", "url": "https://e.com", "description": "d"}]}
+    _patch(monkeypatch, _FakeResponse(json_body=body))
+    assert KeenableWebSearch().run(query="q")["documents"][0].content == "d"
+
     _patch(monkeypatch, _FakeResponse(json_body={"results": [{"title": "OnlyTitle", "url": "https://e.com"}]}))
     out = KeenableWebSearch().run(query="q")
     assert out["documents"][0].content == "OnlyTitle"

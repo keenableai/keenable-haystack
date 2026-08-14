@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "keenable-haystack"
-version = "0.1.2"
+version = "0.1.3"
 description = "Keenable web-search and page-fetch components for Haystack. Keyless by default."
 authors = [{ name = "Keenable", email = "hello@keenable.ai" }]
 maintainers = [{ name = "keenableai" }]

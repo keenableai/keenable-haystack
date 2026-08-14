@@ -145,7 +145,14 @@ class KeenableWebSearch:
         for result in results:
             if not isinstance(result, dict):
                 continue
-            content = result.get("description") or result.get("title") or ""
+            # `snippet` carries the page text; `description` is usually empty, so
+            # reading it first would leave content as the bare title.
+            content = (
+                result.get("snippet")
+                or result.get("description")
+                or result.get("title")
+                or ""
+            )
             documents.append(Document(content=content, meta=dict(result)))
             link = result.get("url")
             if link:
