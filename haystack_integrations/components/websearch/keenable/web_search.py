@@ -14,6 +14,8 @@ from haystack_integrations.components.websearch.keenable._client import (
     normalize_key,
 )
 
+MAX_OBJECTIVE_CHARS = 1000
+
 
 @component
 class KeenableWebSearch:
@@ -140,10 +142,17 @@ class KeenableWebSearch:
         ):
             if value:
                 payload[field] = value
-        # The ranker scores "{query} (task: {objective})"; retrieval reads only
-        # the query. Blank values are not sent.
+        # Ranking uses query and objective together; retrieval reads only the
+        # query. Blank values are not sent.
         if objective and objective.strip():
-            payload["objective"] = objective.strip()
+            objective = objective.strip()
+            if len(objective) > MAX_OBJECTIVE_CHARS:
+                msg = (
+                    f"objective is {len(objective)} characters; the limit is "
+                    f"{MAX_OBJECTIVE_CHARS}. Shorten it to two or three sentences."
+                )
+                raise KeenableError(msg)
+            payload["objective"] = objective
 
         data = keenable_post("/v1/search/public", "/v1/search", payload, api_key, self.timeout)
         results = data.get("results")
