@@ -102,6 +102,7 @@ class KeenableWebSearch:
         acquired_after: Optional[str] = None,
         acquired_before: Optional[str] = None,
         mode: Optional[str] = None,
+        objective: Optional[str] = None,
     ) -> dict[str, Any]:
         """Run a Keenable web search.
 
@@ -112,6 +113,17 @@ class KeenableWebSearch:
         :param acquired_after: Only pages indexed on/after this date (YYYY-MM-DD).
         :param acquired_before: Only pages indexed on/before this date (YYYY-MM-DD).
         :param mode: Override the default search mode for this query.
+        :param objective: Optional. Two or three natural sentences, with no field
+            labels and no line breaks, that cover: the exact facts, entities,
+            numbers, dates or names a useful page must contain; task context the
+            query does not state (who, where, when, eligibility, date window); which
+            kinds of sources count or must be excluded; what is already established
+            from earlier steps; and what is still unknown. Every sentence must be
+            self-contained: name the entities, places, dates and figures explicitly,
+            and never refer to 'the task', 'the clue', 'the question', 'above' or
+            earlier results. Do not paste the conversation, and do not include
+            personal, confidential or sensitive information. At most 1,000
+            characters.
         :returns: A dict with ``documents`` (``list[Document]``) and ``links``
             (``list[str]``).
         """
@@ -128,6 +140,10 @@ class KeenableWebSearch:
         ):
             if value:
                 payload[field] = value
+        # The ranker scores "{query} (task: {objective})"; retrieval reads only
+        # the query. Blank values are not sent.
+        if objective and objective.strip():
+            payload["objective"] = objective.strip()
 
         data = keenable_post("/v1/search/public", "/v1/search", payload, api_key, self.timeout)
         results = data.get("results")

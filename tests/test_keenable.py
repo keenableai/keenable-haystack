@@ -371,6 +371,21 @@ def test_search_default_mode_and_site(monkeypatch):
     assert sent["site"] == "example.com"
 
 
+def test_search_objective_sent_trimmed(monkeypatch):
+    _patch(monkeypatch, _FakeResponse(json_body={"results": []}))
+    KeenableWebSearch(api_key=Secret.from_token("k")).run(
+        query="q", objective="  Find the 2026 figure.  "
+    )
+    assert _Recorder.last["json"]["objective"] == "Find the 2026 figure."
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_search_blank_objective_not_sent(monkeypatch, value):
+    _patch(monkeypatch, _FakeResponse(json_body={"results": []}))
+    KeenableWebSearch(api_key=Secret.from_token("k")).run(query="q", objective=value)
+    assert "objective" not in _Recorder.last["json"]
+
+
 def test_search_no_max_results_in_payload(monkeypatch):
     _patch(monkeypatch, _FakeResponse(json_body={"results": []}))
     KeenableWebSearch(top_k=3).run(query="q")
