@@ -12,7 +12,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 # fetcher reuses it (keyed/keyless selection, attribution headers, SSRF guard).
 from haystack_integrations.components.websearch.keenable._client import (
     KeenableError,
-    keenable_get,
+    keenable_fetch,
     normalize_key,
     reject_private_fetch_target,
 )
@@ -87,7 +87,7 @@ class KeenableFetcher:
             msg = f"Refusing to fetch a non-http(s) URL: {url!r}"
             raise KeenableError(msg)
         reject_private_fetch_target(url)
-        data = keenable_get("/v1/fetch/public", "/v1/fetch", {"url": url}, api_key, self.timeout)
+        data = keenable_fetch(url, api_key, self.timeout)
         content = data.get("content") or ""
         return Document(content=content, meta=dict(data))
 

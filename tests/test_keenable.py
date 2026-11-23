@@ -405,26 +405,41 @@ def test_search_keyed_endpoint(monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
+def _page_body(**page):
+    return {"request_id": "r", "results": [{"url": "https://e.com", **page}]}
+
+
 def test_fetch_returns_documents(monkeypatch):
-    _patch(monkeypatch, _FakeResponse(json_body={"url": "https://e.com", "title": "T", "content": "body"}))
+    _patch(monkeypatch, _FakeResponse(json_body=_page_body(title="T", content="body")))
     out = KeenableFetcher().run(urls=["https://e.com"])
     docs = out["documents"]
     assert len(docs) == 1
     assert docs[0].content == "body"
     assert docs[0].meta["title"] == "T"
+    assert _Recorder.last["method"] == "POST"
     assert _Recorder.last["url"].endswith("/v1/fetch/public")
+    assert _Recorder.last["json"] == {"urls": ["https://e.com"]}
 
 
 def test_fetch_keyed_path(monkeypatch):
     monkeypatch.setenv("KEENABLE_API_KEY", "secret")
-    _patch(monkeypatch, _FakeResponse(json_body={"content": "x"}))
+    _patch(monkeypatch, _FakeResponse(json_body=_page_body(content="x")))
     KeenableFetcher().run(urls=["https://e.com"])
+    assert _Recorder.last["method"] == "POST"
     assert _Recorder.last["url"].endswith("/v1/fetch")
     assert _Recorder.last["headers"]["X-API-Key"] == "secret"
 
 
+def test_fetch_page_error_is_skipped_or_raised(monkeypatch):
+    body = {"results": [{"url": "https://e.com", "error": {"status": 404, "message": "page not found"}}]}
+    _patch(monkeypatch, _FakeResponse(json_body=body))
+    assert KeenableFetcher().run(urls=["https://e.com"])["documents"] == []
+    with pytest.raises(KeenableError, match="404.*page not found"):
+        KeenableFetcher(raise_on_failure=True).run(urls=["https://e.com"])
+
+
 def test_fetch_skips_bad_urls_by_default(monkeypatch):
-    _patch(monkeypatch, _FakeResponse(json_body={"content": "ok"}))
+    _patch(monkeypatch, _FakeResponse(json_body=_page_body(content="ok")))
     out = KeenableFetcher().run(urls=["ftp://e.com/x", "http://127.0.0.1/x", "https://good.com"])
     assert len(out["documents"]) == 1
     assert out["documents"][0].content == "ok"
