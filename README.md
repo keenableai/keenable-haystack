@@ -49,8 +49,8 @@ pipe.connect("search.documents", "prompt.documents")
 
 `KeenableWebSearch.run` accepts optional per-query filters (`site`,
 `published_after/before`, `acquired_after/before`, `mode`, `objective`).
-`objective` (optional, at most 1,000 characters) is two or three natural sentences
-on what the search is for; blank values are not sent. Keenable ranks results by `query` and `objective` together; retrieval reads only `query`, so put the words that matter in `query`. There is no
+`objective` (optional, at most 1,000 characters) says what the search is for (what the
+query leaves out, what earlier searches found); pass it for multi-step or ambiguous questions; blank values are not sent. Keenable ranks results by `query` and `objective` together; retrieval reads only `query`, so put the words that matter in `query`. There is no
 `max_results`: the API returns a fixed-size result set; `top_k` (constructor)
 trims it client-side.
 
