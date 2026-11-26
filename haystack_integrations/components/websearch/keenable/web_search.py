@@ -14,6 +14,8 @@ from haystack_integrations.components.websearch.keenable._client import (
     normalize_key,
 )
 
+MAX_OBJECTIVE_CHARS = 1000
+
 
 @component
 class KeenableWebSearch:
@@ -102,6 +104,7 @@ class KeenableWebSearch:
         acquired_after: Optional[str] = None,
         acquired_before: Optional[str] = None,
         mode: Optional[str] = None,
+        objective: Optional[str] = None,
     ) -> dict[str, Any]:
         """Run a Keenable web search.
 
@@ -112,6 +115,12 @@ class KeenableWebSearch:
         :param acquired_after: Only pages indexed on/after this date (YYYY-MM-DD).
         :param acquired_before: Only pages indexed on/before this date (YYYY-MM-DD).
         :param mode: Override the default search mode for this query.
+        :param objective: Optional. Use for multi-step or ambiguous searches; omit for simple
+            lookups. In one to three plain sentences, say what the search is
+            for, what the query leaves out (who, where, when, which sources
+            count) and what earlier searches found. Don't restate the question
+            or include personal or confidential details. At most 1,000
+            characters.
         :returns: A dict with ``documents`` (``list[Document]``) and ``links``
             (``list[str]``).
         """
@@ -128,6 +137,17 @@ class KeenableWebSearch:
         ):
             if value:
                 payload[field] = value
+        # Ranking uses query and objective together; retrieval reads only the
+        # query. Blank values are not sent.
+        if objective and objective.strip():
+            objective = objective.strip()
+            if len(objective) > MAX_OBJECTIVE_CHARS:
+                msg = (
+                    f"objective is {len(objective)} characters; the limit is "
+                    f"{MAX_OBJECTIVE_CHARS}. Shorten it to two or three sentences."
+                )
+                raise KeenableError(msg)
+            payload["objective"] = objective
 
         data = keenable_post("/v1/search/public", "/v1/search", payload, api_key, self.timeout)
         results = data.get("results")
