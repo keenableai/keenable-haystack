@@ -121,7 +121,7 @@ Attack surface to cover (write at least one probe per relevant area):
    confirm to_dict raises or omits the value (token secrets are not serializable).
    Confirm from_dict round-trips by env var name only.
 2. Endpoint selection & key handling. With a key -> POST <base>/v1/search (search)
-   / GET <base>/v1/fetch (fetch) with an X-API-Key header. Without a key (or a
+   / POST <base>/v1/fetch (fetch) with an X-API-Key header. Without a key (or a
    blank/whitespace key) -> the /v1/search/public, /v1/fetch/public path and NO
    X-API-Key. Probe that the key is never sent to the public endpoint. The base URL
    comes only from the KEENABLE_API_URL env var and must be https (or http loopback);
